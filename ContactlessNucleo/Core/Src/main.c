@@ -94,9 +94,9 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   uint8_t uart_buf[] = "start\r\n";
-  uint16_t address = 0x52<<1;
-  uint16_t addressR = (0x52<<1)+1;
-  uint8_t tx_buf[1] = {0xD3};
+  uint16_t address = 0x80;
+  uint16_t addressR = address+1;
+  uint8_t tx_buf[1] = {0x5E};
   uint8_t rx_buf[2] = {};
   HAL_UART_Transmit(&huart2,uart_buf,sizeof(uart_buf),1000);
   /* USER CODE END 2 */
@@ -106,7 +106,7 @@ int main(void)
   while (1)
   {
     HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
-    HAL_GPIO_WritePin(GPIOC,GPIO_PIN_0,RESET);
+    HAL_GPIO_WritePin(GPIOC,GPIO_PIN_0,SET);
     if(HAL_I2C_Master_Transmit(&hi2c1,address,tx_buf,1,1000)!=HAL_OK)
     {
       Error_Handler();
@@ -116,9 +116,9 @@ int main(void)
         Error_Handler();
     }
     uint8_t tof_data[8] = {};
-    snprintf((char*)tof_data,8,"%d\r\n",rx_buf[0]<<8|rx_buf[1]);
+    snprintf((char*)tof_data,8,"%d\r\n",(uint16_t)((rx_buf[0]<<4|rx_buf[1])/64));
     HAL_UART_Transmit(&huart2,tof_data,8,1000);
-    HAL_GPIO_WritePin(GPIOC,GPIO_PIN_0,SET);
+    HAL_GPIO_WritePin(GPIOC,GPIO_PIN_0,RESET);
     HAL_Delay(50);
     /* USER CODE END WHILE */
 
