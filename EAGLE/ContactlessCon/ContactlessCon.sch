@@ -5061,9 +5061,9 @@ Source: http://www.mouser.com/ds/2/392/products_18-2245.pdf</description>
 <label x="50.8" y="45.72" size="1.778" layer="95"/>
 </segment>
 <segment>
-<pinref part="X1" gate="P" pin="3"/>
-<wire x1="98.298" y1="60.96" x2="87.122" y2="60.96" width="0.1524" layer="91"/>
-<label x="86.36" y="60.96" size="1.778" layer="95"/>
+<pinref part="X1" gate="P" pin="5"/>
+<wire x1="98.298" y1="55.88" x2="86.36" y2="55.88" width="0.1524" layer="91"/>
+<label x="86.36" y="55.88" size="1.778" layer="95"/>
 </segment>
 </net>
 <net name="SCL" class="0">
@@ -5075,9 +5075,9 @@ Source: http://www.mouser.com/ds/2/392/products_18-2245.pdf</description>
 <wire x1="68.58" y1="55.88" x2="68.58" y2="50.8" width="0.1524" layer="91"/>
 </segment>
 <segment>
-<pinref part="X1" gate="P" pin="5"/>
-<wire x1="98.298" y1="55.88" x2="87.122" y2="55.88" width="0.1524" layer="91"/>
-<label x="86.36" y="55.88" size="1.778" layer="95"/>
+<wire x1="98.298" y1="58.42" x2="87.122" y2="58.42" width="0.1524" layer="91"/>
+<pinref part="X1" gate="P" pin="4"/>
+<label x="86.36" y="58.42" size="1.778" layer="95"/>
 </segment>
 </net>
 <net name="SDA" class="0">
@@ -5089,9 +5089,9 @@ Source: http://www.mouser.com/ds/2/392/products_18-2245.pdf</description>
 <wire x1="60.96" y1="55.88" x2="60.96" y2="53.34" width="0.1524" layer="91"/>
 </segment>
 <segment>
-<wire x1="98.298" y1="58.42" x2="87.122" y2="58.42" width="0.1524" layer="91"/>
-<pinref part="X1" gate="P" pin="4"/>
-<label x="86.36" y="58.42" size="1.778" layer="95"/>
+<pinref part="X1" gate="P" pin="3"/>
+<wire x1="98.298" y1="60.96" x2="87.122" y2="60.96" width="0.1524" layer="91"/>
+<label x="86.36" y="60.96" size="1.778" layer="95"/>
 </segment>
 </net>
 <net name="SPEAKER" class="0">
