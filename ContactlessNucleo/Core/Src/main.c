@@ -156,8 +156,8 @@ int main(void)
     uint16_t distance = (rx_buf[0]<<4|rx_buf[1])/64;
     if(distance<40)
     {
-      TIM4->ARR = 5357*powf(2,(float)(distance)/12);
-      TIM4->CCR1 = (uint32_t)(TIM4->ARR/2);
+      TIM4->ARR = 5357;
+      TIM4->CCR1 = (uint32_t)(TIM4->ARR*distance/40);
     }
     else
     {
@@ -165,8 +165,8 @@ int main(void)
       TIM4->CCR1 = 2650;
     }
     uint8_t tof_data[16] = {};
-    snprintf((char*)tof_data,16,"%d,%d\r\n",distance,(int)(powf(2,(float)(distance)/12)*10));
-    HAL_UART_Transmit(&huart2,tof_data,8,1000);
+    snprintf((char*)tof_data,16,"%d,%ld\r\n",distance,TIM4->CCR1);
+    HAL_UART_Transmit(&huart2,tof_data,16,1000);
     
     HAL_GPIO_WritePin(GPIOC,GPIO_PIN_0,RESET);
     //TIM3->CCR1 = 50000;
