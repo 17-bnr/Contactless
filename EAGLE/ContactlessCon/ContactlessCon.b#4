@@ -1482,6 +1482,8 @@ design rules under a new name.</description>
 <contactref element="X1" pad="2"/>
 <contactref element="X1" pad="S@2"/>
 <contactref element="X1" pad="S@1"/>
+<contactref element="J2" pad="7"/>
+<wire x1="53.5" y1="15.24" x2="53.5" y2="17.78" width="0" layer="19" extent="1-1"/>
 </signal>
 <signal name="GPIO">
 <contactref element="J2" pad="5"/>
@@ -1495,7 +1497,6 @@ design rules under a new name.</description>
 <signal name="SCL">
 <contactref element="J2" pad="3"/>
 <contactref element="R2" pad="1"/>
-<wire x1="29.508" y1="7.744" x2="29.632" y2="7.62" width="0.254" layer="1"/>
 <wire x1="53.5" y1="7.62" x2="30" y2="7.62" width="0.254" layer="1"/>
 <contactref element="X1" pad="4"/>
 <wire x1="30" y1="7.62" x2="29.632" y2="7.62" width="0.254" layer="1"/>
