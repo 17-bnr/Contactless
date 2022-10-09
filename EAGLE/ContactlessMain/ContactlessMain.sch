@@ -738,6 +738,7 @@ Source: &lt;a href=http://de.farnell.com/molex/0446200002/buchse-rj45-geschirmt/
 <part name="GND3" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
 <part name="+3V1" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="+3V3" device=""/>
 <part name="GND1" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
+<part name="GND2" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
 </parts>
 <sheets>
 <sheet>
@@ -771,6 +772,9 @@ Source: &lt;a href=http://de.farnell.com/molex/0446200002/buchse-rj45-geschirmt/
 </instance>
 <instance part="GND1" gate="1" x="-44.45" y="-19.05" smashed="yes">
 <attribute name="VALUE" x="-46.99" y="-21.59" size="1.778" layer="96"/>
+</instance>
+<instance part="GND2" gate="1" x="30.48" y="5.08" smashed="yes">
+<attribute name="VALUE" x="27.94" y="2.54" size="1.778" layer="96"/>
 </instance>
 </instances>
 <busses>
@@ -810,6 +814,11 @@ Source: &lt;a href=http://de.farnell.com/molex/0446200002/buchse-rj45-geschirmt/
 <pinref part="GND1" gate="1" pin="GND"/>
 <wire x1="-44.45" y1="-16.51" x2="-44.45" y2="-12.7" width="0.1524" layer="91"/>
 </segment>
+<segment>
+<pinref part="J2" gate="G$1" pin="8"/>
+<pinref part="GND2" gate="1" pin="GND"/>
+<wire x1="30.48" y1="7.62" x2="30.48" y2="10.16" width="0.1524" layer="91"/>
+</segment>
 </net>
 <net name="GPIO" class="0">
 <segment>
@@ -824,12 +833,22 @@ Source: &lt;a href=http://de.farnell.com/molex/0446200002/buchse-rj45-geschirmt/
 <wire x1="-40.132" y1="26.67" x2="-52.07" y2="26.67" width="0.1524" layer="91"/>
 <label x="-52.07" y="26.67" size="1.778" layer="95"/>
 </segment>
+<segment>
+<pinref part="U1" gate="G$2" pin="PB8"/>
+<wire x1="20.32" y1="-107.95" x2="3.81" y2="-107.95" width="0.1524" layer="91"/>
+<label x="5.08" y="-107.95" size="1.778" layer="95"/>
+</segment>
 </net>
 <net name="SDA" class="0">
 <segment>
 <pinref part="X1" gate="P" pin="4"/>
 <wire x1="-40.132" y1="29.21" x2="-52.07" y2="29.21" width="0.1524" layer="91"/>
 <label x="-52.07" y="29.21" size="1.778" layer="95"/>
+</segment>
+<segment>
+<pinref part="U1" gate="G$2" pin="PB9"/>
+<wire x1="20.32" y1="-110.49" x2="3.81" y2="-110.49" width="0.1524" layer="91"/>
+<label x="5.08" y="-110.49" size="1.778" layer="95"/>
 </segment>
 </net>
 <net name="SPEAKER" class="0">
