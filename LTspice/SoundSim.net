@@ -1,0 +1,8 @@
+* C:\Users\banru\Documents\workspace\Contactless\LTspice\SoundSim.asc
+V1 N001 0 PULSE(0 3.3 0 1u 1u 1.28m 2.55m)
+R1 out N001 R
+C1 out 0 C
+.wave output.wav 16 44.1k V(out)
+.tran 1
+.backanno
+.end

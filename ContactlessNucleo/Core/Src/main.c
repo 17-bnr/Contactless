@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
+#include "math.h"
 
 /* USER CODE END Includes */
 
@@ -139,27 +140,38 @@ int main(void)
   while (1)
   {
     HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
-    TIM3->CCR1 = 10000;
-    TIM4->CCR1 = 10000;
-    HAL_Delay(250);
-    /*
+    //TIM3->CCR1 = 10000;
+    //TIM4->CCR1 = 10000;
+    HAL_Delay(25);
+    
     HAL_GPIO_WritePin(GPIOC,GPIO_PIN_0,SET);
     if(HAL_I2C_Master_Transmit(&hi2c1,address,tx_buf,1,1000)!=HAL_OK)
     {
-      Error_Handler();
+      //Error_Handler();
     }
     if(HAL_I2C_Master_Receive(&hi2c1,addressR,rx_buf,2,1000)!=HAL_OK)
     {
-        Error_Handler();
+      //Error_Handler();
     }
-    uint8_t tof_data[8] = {};
-    snprintf((char*)tof_data,8,"%d\r\n",(uint16_t)((rx_buf[0]<<4|rx_buf[1])/64));
-    HAL_UART_Transmit(&huart2,tof_data,8,1000);
-    */
+    uint16_t distance = (rx_buf[0]<<4|rx_buf[1])/64;
+    if(distance<40)
+    {
+      TIM4->ARR = 5357;
+      TIM4->CCR1 = (uint32_t)(TIM4->ARR*distance/40);
+    }
+    else
+    {
+      TIM4->ARR = 5357;
+      TIM4->CCR1 = 2650;
+    }
+    uint8_t tof_data[16] = {};
+    snprintf((char*)tof_data,16,"%d,%ld\r\n",distance,TIM4->CCR1);
+    HAL_UART_Transmit(&huart2,tof_data,16,1000);
+    
     HAL_GPIO_WritePin(GPIOC,GPIO_PIN_0,RESET);
-    TIM3->CCR1 = 50000;
-    TIM4->CCR1 = 50000;
-    HAL_Delay(250);
+    //TIM3->CCR1 = 50000;
+    //TIM4->CCR1 = 50000;
+    HAL_Delay(25);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -414,9 +426,9 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 3;
+  htim4.Init.Prescaler = 39;
   htim4.Init.CounterMode = TIM_COUNTERMODE_DOWN;
-  htim4.Init.Period = 53570;
+  htim4.Init.Period = 5357;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)

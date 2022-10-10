@@ -17,7 +17,7 @@
             "defines": [
                 "USE_HAL_DRIVER",
                 "STM32F446xx",
-                "__weak=__attribute__((weak))" ,
+                "__weak=__attribute__((weak))",
                 "ARM_MATH_CM4"
             ],
             "intelliSenseMode": "gcc-arm",
@@ -25,7 +25,7 @@
                 "path": [
                     "${workspaceFolder}",
                     "C:/tools/gcc-arm-none-eabi-10-2020-q4-major/arm-none-eabi/include",
-                "C:/tools/gcc-arm-none-eabi-10-2020-q4-major/lib/gcc/arm-none-eabi/10.2.1/include",
+                    "C:/tools/gcc-arm-none-eabi-10-2020-q4-major/lib/gcc/arm-none-eabi/10.2.1/include",
                     "${workspaceFolder}/Core/Inc",
                     "${workspaceFolder}/Drivers/STM32F4xx_HAL_Driver/Inc",
                     "${workspaceFolder}/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy",
@@ -39,7 +39,8 @@
             },
             "compilerPath": "C:/tools/gcc-arm-none-eabi-10-2020-q4-major/bin/arm-none-eabi-g++",
             "cStandard": "c11",
-            "cppStandard": "c++17"
+            "cppStandard": "c++17",
+            "configurationProvider": "ms-vscode.makefile-tools"
         }
     ],
     "version": 4
