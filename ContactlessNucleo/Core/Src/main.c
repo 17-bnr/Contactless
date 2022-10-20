@@ -58,6 +58,7 @@ const static uint16_t addressR = address+1;
 static uint8_t rx_buf[2] = {};
 static uint8_t tx_on_buf[2] = {0xE8,0x00};
 static uint8_t tx_off_buf[2] = {0xE8,0x01};
+static uint8_t tx_buf[1] = {0x5E};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -75,9 +76,10 @@ static void MX_TIM8_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-enum Mode {Start,Game,Finish};
-static enum Mode mode = Start;
+enum GameMode {Start,Wait,Game,Finish};
+static enum GameMode mode = Start;
 static uint32_t time_counter = 0;
+static uint32_t strike_counter = 0;
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim==&htim2)
@@ -87,18 +89,20 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     {
     case Start:
       HAL_GPIO_TogglePin(LED2_GPIO_Port,LED2_Pin);
-      uint8_t tx_buf[1] = {0x5E};
       HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
       HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
-      if(time_counter==4)
+      break;
+    case Wait:
+      HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
+      if(time_counter>=60)
       {
         time_counter = 0;
-        mode = 1;
+        mode = Game;
       }
-      break;
     case Game:
       HAL_GPIO_TogglePin(LED3_GPIO_Port,LED3_Pin);
-      if(time_counter==4)
+      if(time_counter==100)
       {
         time_counter = 0;
         mode = 0;
@@ -124,8 +128,25 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
   {
     HAL_I2C_Master_Transmit(&hi2c1,address,tx_off_buf,2,1);
     uint16_t distance = (rx_buf[0]<<4|rx_buf[1])/64;
+    if(mode==Start)
+    {
+      if(distance>=10&&distance<=12)
+      {
+        strike_counter++;
+        if(strike_counter>=20)
+        {
+          strike_counter = 0;
+          time_counter = 0;
+          mode = Wait;
+        }
+      }
+      else
+      {
+        strike_counter = 0;
+      }
+    }
     uint8_t tof_data[16] = {};
-    snprintf((char*)tof_data,16,"%d\r\n",distance);
+    snprintf((char*)tof_data,16,"%d,%d\r\n",distance,mode);
     HAL_UART_Transmit_DMA(&huart2,tof_data,16);
   }
 }
@@ -181,8 +202,8 @@ int main(void)
   {
     Error_Handler();
   }
-  //HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_SET);
-  //HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
 
