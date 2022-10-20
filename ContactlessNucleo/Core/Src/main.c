@@ -56,17 +56,19 @@ DMA_HandleTypeDef hdma_usart2_tx;
 const static uint16_t address = 0x80;
 const static uint16_t addressR = address+1;
 static uint8_t rx_buf[2] = {};
+static uint8_t tx_on_buf[2] = {0xE8,0x00};
+static uint8_t tx_off_buf[2] = {0xE8,0x01};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_GPIO_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM8_Init(void);
-static void MX_DMA_Init(void);
-static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -86,7 +88,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     case Start:
       HAL_GPIO_TogglePin(LED2_GPIO_Port,LED2_Pin);
       uint8_t tx_buf[1] = {0x5E};
-      uint8_t tx_on_buf[2] = {0xE8,0x00};
       HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
       HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
       if(time_counter==4)
@@ -121,7 +122,6 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
   if(hi2c==&hi2c1)
   {
-    uint8_t tx_off_buf[2] = {0xE8,0x01};
     HAL_I2C_Master_Transmit(&hi2c1,address,tx_off_buf,2,1);
     uint16_t distance = (rx_buf[0]<<4|rx_buf[1])/64;
     uint8_t tof_data[16] = {};
@@ -167,12 +167,9 @@ int main(void)
   MX_TIM8_Init();
   /* USER CODE BEGIN 2 */
   uint8_t uart_buf[] = "start\r\n";
-  uint8_t tx_on_buf[2] = {0xE8,0x00};
-  //uint8_t rx_buf[2] = {};
   HAL_UART_Transmit(&huart2,uart_buf,sizeof(uart_buf),1000);
   HAL_GPIO_WritePin(GPIO_GPIO_Port,GPIO_Pin,SET);
   HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
-  //HAL_GPIO_WritePin(GPIO_GPIO_Port,GPIO_Pin,RESET);
   TIM2->CNT = 0;
   TIM3->CNT = 0;
   TIM4->CNT = 0;
@@ -184,8 +181,8 @@ int main(void)
   {
     Error_Handler();
   }
-  HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
+  //HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_SET);
+  //HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
 
@@ -339,7 +336,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 41999999;
+  htim2.Init.Period = 4199999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
