@@ -83,6 +83,8 @@ void Error_Handler(void);
 #define LED4_GPIO_Port GPIOB
 #define PRESOUND_Pin GPIO_PIN_9
 #define PRESOUND_GPIO_Port GPIOC
+#define GPIO_Pin GPIO_PIN_10
+#define GPIO_GPIO_Port GPIOA
 #define TMS_Pin GPIO_PIN_13
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
