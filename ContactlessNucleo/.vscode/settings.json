@@ -51,6 +51,7 @@
     "cmsis_os.h": "c",
     "arm_math.h": "c",
     "freertos.h": "c",
-    "stdint.h": "c"
+    "stdint.h": "c",
+    "main.h": "c"
   }
 }
