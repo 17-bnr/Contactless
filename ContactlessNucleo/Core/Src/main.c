@@ -76,6 +76,28 @@ static void MX_TIM8_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+enum Tone {C,Cs,D,Ef,E,F,Fs,G,Gs,A,Bf,B};
+void SpeakerOn(uint16_t distance);
+
+void SpeakerOff()
+{
+  HAL_TIM_PWM_Stop(&htim3,TIM_CHANNEL_1);
+}
+
+void ASoundOn()
+{
+  TIM8->ARR = 31817;
+  TIM8->CCR4 = (TIM8->ARR)/2;
+  HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_4);
+}
+
+void RefSoundOn(uint16_t time);
+
+void SoundOff()
+{
+  HAL_TIM_PWM_Stop(&htim8,TIM_CHANNEL_4);
+}
+
 enum GameMode {Start,Wait,Game,Finish};
 static enum GameMode mode = Start;
 static uint32_t time_counter = 0;
@@ -88,11 +110,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     switch (mode)
     {
     case Start:
-      HAL_GPIO_TogglePin(LED2_GPIO_Port,LED2_Pin);
+      ASoundOn();
       HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
       HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
       break;
     case Wait:
+      SoundOff();
       HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
       HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
       if(time_counter>=60)
@@ -107,6 +130,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         time_counter = 0;
         mode = 0;
       }
+      break;
+    case Finish:
       break;
     default:
       break;
@@ -193,12 +218,12 @@ int main(void)
   HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
   TIM2->CNT = 0;
   TIM3->CNT = 0;
-  TIM4->CNT = 0;
-  if(HAL_TIM_Base_Start(&htim3)!=HAL_OK)
+  TIM8->CNT = 0;
+  if(HAL_TIM_Base_Start(&htim8)!=HAL_OK)
   {
     Error_Handler();
   }
-  if(HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1)!=HAL_OK)
+  if(HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_4)!=HAL_OK)
   {
     Error_Handler();
   }
@@ -452,6 +477,7 @@ static void MX_TIM8_Init(void)
 
   /* USER CODE END TIM8_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
   TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
@@ -460,12 +486,21 @@ static void MX_TIM8_Init(void)
 
   /* USER CODE END TIM8_Init 1 */
   htim8.Instance = TIM8;
-  htim8.Init.Prescaler = 0;
+  htim8.Init.Prescaler = 5;
   htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim8.Init.Period = 65535;
+  htim8.Init.Period = 53639;
   htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim8.Init.RepetitionCounter = 0;
   htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim8, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim8) != HAL_OK)
   {
     Error_Handler();
@@ -477,7 +512,7 @@ static void MX_TIM8_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 18000;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
