@@ -158,7 +158,7 @@ void SpeakerOff()
 
 void ASoundOn()
 {
-  TIM8->ARR = 31817;
+  TIM8->ARR = tone_array[A];
   TIM8->CCR4 = (TIM8->ARR)/2;
   HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_4);
 }
@@ -227,8 +227,9 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
     HAL_I2C_Master_Transmit(&hi2c1,address,tx_off_buf,2,1);
     uint16_t distance = (rx_buf[0]<<4|rx_buf[1])/64;
     enum Tone speaker_tone = none;
-    if(mode==Start)
+    switch (mode)
     {
+    case Start:
       speaker_tone = SpeakerOn(distance);
       if(speaker_tone==A)
       {
@@ -244,6 +245,10 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
       {
         strike_counter = 0;
       }
+      break;
+    
+    default:
+      break;
     }
     uint8_t tof_data[16] = {};
     snprintf((char*)tof_data,16,"%d,%d\r\n",distance,mode);
