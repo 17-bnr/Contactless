@@ -59,6 +59,8 @@ static uint8_t rx_buf[2] = {};
 static uint8_t tx_on_buf[2] = {0xE8,0x00};
 static uint8_t tx_off_buf[2] = {0xE8,0x01};
 static uint8_t tx_buf[1] = {0x5E};
+static uint32_t tone_array[12]
+= {53639,50540,47780,45015,42552,40114,37837,35713,33734,31817,30042,28339};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,8 +78,78 @@ static void MX_TIM8_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-enum Tone {C,Cs,D,Ef,E,F,Fs,G,Gs,A,Bf,B};
-void SpeakerOn(uint16_t distance);
+enum Tone {C=0,Cs,D,Ef,E,F,Fs,G,Gs,A,Bf,B,none};
+enum Tone SpeakerOn(uint16_t distance)
+{
+  switch (distance)
+  {
+  case 3: case 4:
+    TIM3->ARR = tone_array[C];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return C;
+    break;
+  case 5: case 6:
+    TIM3->ARR = tone_array[Cs];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Cs;
+  case 7: case 8:
+    TIM3->ARR = tone_array[D];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return D;
+  case 9: case 10:
+    TIM3->ARR = tone_array[Ef];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Ef;
+  case 11: case 12: case 13:
+    TIM3->ARR = tone_array[E];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return E;
+  case 14: case 15: case 16:
+    TIM3->ARR = tone_array[F];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return F;
+  case 17: case 18: case 19: case 20:
+    TIM3->ARR = tone_array[Fs];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Fs;
+  case 21: case 22: case 23: case 24:
+    TIM3->ARR = tone_array[G];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return G;
+  case 25: case 26: case 27: case 28:
+    TIM3->ARR = tone_array[Gs];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Gs;
+  case 29: case 30: case 31: case 32:
+    TIM3->ARR = tone_array[A];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return A;
+  case 33: case 34: case 35: case 36:
+    TIM3->ARR = tone_array[Bf];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Bf;
+  case 37: case 38: case 39: case 40: case 41:
+    TIM3->ARR = tone_array[B];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return B;
+  default:
+    HAL_TIM_PWM_Stop(&htim3,TIM_CHANNEL_1);
+    return none;
+    break;
+  }
+}
 
 void SpeakerOff()
 {
@@ -115,6 +187,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
       break;
     case Wait:
+      SpeakerOff();
       SoundOff();
       HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
       HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
@@ -153,9 +226,11 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
   {
     HAL_I2C_Master_Transmit(&hi2c1,address,tx_off_buf,2,1);
     uint16_t distance = (rx_buf[0]<<4|rx_buf[1])/64;
+    enum Tone speaker_tone = none;
     if(mode==Start)
     {
-      if(distance>=10&&distance<=12)
+      speaker_tone = SpeakerOn(distance);
+      if(speaker_tone==A)
       {
         strike_counter++;
         if(strike_counter>=20)
