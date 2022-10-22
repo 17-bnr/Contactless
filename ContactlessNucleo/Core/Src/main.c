@@ -163,17 +163,22 @@ void ASoundOn()
   HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_4);
 }
 
-void RefSoundOn(uint16_t time);
+void RefSoundOn(uint32_t time)
+{
+  TIM8->ARR = tone_array[time%12];
+  TIM8->CCR4 = (TIM8->ARR)/2;
+  HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_4);
+}
 
 void SoundOff()
 {
   HAL_TIM_PWM_Stop(&htim8,TIM_CHANNEL_4);
 }
 
-enum GameMode {Start,Wait,Game,Finish};
+enum GameMode {Start,Wait,Game,Clear,Finish};
 static enum GameMode mode = Start;
 static uint32_t time_counter = 0;
-static uint32_t strike_counter = 0;
+static uint32_t game_time = 0;
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim==&htim2)
@@ -196,15 +201,26 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         time_counter = 0;
         mode = Game;
       }
+      break;
     case Game:
-      HAL_GPIO_TogglePin(LED3_GPIO_Port,LED3_Pin);
-      if(time_counter==100)
-      {
-        time_counter = 0;
-        mode = 0;
-      }
+      RefSoundOn(game_time);
+      HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
+      HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
+      break;
+    case Clear:
+      SpeakerOff();
+      SoundOff();
+      HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
+      HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
       break;
     case Finish:
+      SpeakerOff();
+      SoundOff();
+      if(time_counter>=60)
+      {
+        time_counter = 0;
+        mode = Start;
+      }
       break;
     default:
       break;
@@ -220,6 +236,7 @@ void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
   }
 }
 
+static uint32_t strike_counter = 0;
 void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
   if(hi2c==&hi2c1)
@@ -246,12 +263,44 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
         strike_counter = 0;
       }
       break;
-    
+    case Game:
+      speaker_tone = SpeakerOn(distance);
+      if(speaker_tone==(game_time%12))
+      {
+        strike_counter++;
+        if(strike_counter>=20)
+        {
+          strike_counter = 0;
+          game_time = time_counter;
+          time_counter = 0;
+          mode = Clear;
+        }
+      }
+      else
+      {
+        strike_counter = 0;
+      }
+      break;
+    case Clear:
+      if(distance<10)
+      {
+        strike_counter++;
+        if(strike_counter>=20)
+        {
+          strike_counter = 0;
+          time_counter = 0;
+          mode = Finish;
+        }
+      }
+      else
+      {
+        strike_counter = 0;
+      }
     default:
       break;
     }
     uint8_t tof_data[16] = {};
-    snprintf((char*)tof_data,16,"%d,%d\r\n",distance,mode);
+    snprintf((char*)tof_data,16,"%d,%ld,%ld\r\n",distance,time_counter,game_time);
     HAL_UART_Transmit_DMA(&huart2,tof_data,16);
   }
 }
