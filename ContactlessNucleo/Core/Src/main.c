@@ -42,21 +42,34 @@
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
+DMA_HandleTypeDef hdma_i2c1_tx;
 
+TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim8;
 
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
-
+const static uint16_t address = 0x80;
+const static uint16_t addressR = address+1;
+static uint8_t rx_buf[2] = {};
+static uint8_t tx_on_buf[2] = {0xE8,0x00};
+static uint8_t tx_off_buf[2] = {0xE8,0x01};
+static uint8_t tx_buf[1] = {0x5E};
+static uint32_t tone_array[12]
+= {53639,50540,47780,45015,42552,40114,37837,35713,33734,31817,30042,28339};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_GPIO_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM8_Init(void);
 /* USER CODE BEGIN PFP */
@@ -65,7 +78,441 @@ static void MX_TIM8_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+enum Tone {C=0,Cs,D,Ef,E,F,Fs,G,Gs,A,Bf,B,none};
+enum Tone SpeakerOn(uint16_t distance)
+{
+  switch (distance)
+  {
+  case 3: case 4:
+    TIM3->ARR = tone_array[C];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return C;
+    break;
+  case 5: case 6:
+    TIM3->ARR = tone_array[Cs];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Cs;
+  case 7: case 8:
+    TIM3->ARR = tone_array[D];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return D;
+  case 9: case 10:
+    TIM3->ARR = tone_array[Ef];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Ef;
+  case 11: case 12: case 13:
+    TIM3->ARR = tone_array[E];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return E;
+  case 14: case 15: case 16:
+    TIM3->ARR = tone_array[F];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return F;
+  case 17: case 18: case 19: case 20:
+    TIM3->ARR = tone_array[Fs];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Fs;
+  case 21: case 22: case 23: case 24:
+    TIM3->ARR = tone_array[G];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return G;
+  case 25: case 26: case 27: case 28:
+    TIM3->ARR = tone_array[Gs];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Gs;
+  case 29: case 30: case 31: case 32:
+    TIM3->ARR = tone_array[A];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return A;
+  case 33: case 34: case 35: case 36:
+    TIM3->ARR = tone_array[Bf];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Bf;
+  case 37: case 38: case 39: case 40: case 41:
+    TIM3->ARR = tone_array[B];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return B;
+  default:
+    HAL_TIM_PWM_Stop(&htim3,TIM_CHANNEL_1);
+    return none;
+    break;
+  }
+}
 
+void SpeakerOff()
+{
+  HAL_TIM_PWM_Stop(&htim3,TIM_CHANNEL_1);
+}
+
+void ASoundOn()
+{
+  TIM8->ARR = tone_array[A];
+  TIM8->CCR4 = (TIM8->ARR)/2;
+  HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_4);
+}
+
+void RefSoundOn(uint32_t time)
+{
+  TIM8->ARR = tone_array[time%12];
+  TIM8->CCR4 = (TIM8->ARR)/2;
+  HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_4);
+}
+
+void SoundOff()
+{
+  HAL_TIM_PWM_Stop(&htim8,TIM_CHANNEL_4);
+}
+
+enum GameMode {Wait,Start,Load,Game,Clear,Finish};
+static enum GameMode mode = Wait;
+static uint32_t time_counter = 0;
+static uint32_t game_time = 0;
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if(htim==&htim2)
+  {
+    time_counter++;
+    switch (mode)
+    {
+    case Wait:
+      SpeakerOff();
+      SoundOff();
+      HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_SET);
+      HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_SET);
+      HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
+      HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_SET);
+      HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_SET);
+      HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_SET);
+      HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
+      HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
+      break;
+    case Start:
+      ASoundOn();
+      HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
+      HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
+      break;
+    case Load:
+      SpeakerOff();
+      SoundOff();
+      HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+      if(time_counter>=60)
+      {
+        time_counter = 0;
+        mode = Game;
+      }
+      break;
+    case Game:
+      RefSoundOn(game_time);
+      HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
+      HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
+      break;
+    case Clear:
+      SpeakerOff();
+      SoundOff();
+      HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
+      HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1);
+      break;
+    case Finish:
+      SpeakerOff();
+      SoundOff();
+      HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_SET);
+      HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+      if(time_counter>=60)
+      {
+        time_counter = 0;
+        mode = Wait;
+      }
+      break;
+    default:
+      break;
+    }
+  }
+}
+
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+  if(hi2c==&hi2c1)
+  {
+    HAL_I2C_Master_Receive_DMA(&hi2c1,addressR,rx_buf,2);
+  }
+}
+
+static uint32_t strike_counter = 0;
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+  if(hi2c==&hi2c1)
+  {
+    HAL_I2C_Master_Transmit(&hi2c1,address,tx_off_buf,2,1);
+    uint16_t distance = (rx_buf[0]<<4|rx_buf[1])/64;
+    enum Tone speaker_tone = none;
+    switch (mode)
+    {
+      case Wait:
+      if(distance<10)
+      {
+        strike_counter++;
+        if(strike_counter>=20)
+        {
+          strike_counter = 0;
+          time_counter = 0;
+          mode = Start;
+        }
+      }
+      else
+      {
+        strike_counter = 0;
+      }
+      break;
+    case Start:
+      speaker_tone = SpeakerOn(distance);
+      if(distance>=63)
+      {
+        HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+      }
+      else
+      {
+        switch (speaker_tone-A)
+        {
+        case -9: case -8: case -7: case -6: case -5: case -4: case -3:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case -2:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case -1:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case 0:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case 1:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case 2:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        default:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        }
+      }
+      if(speaker_tone==A)
+      {
+        strike_counter++;
+        if(strike_counter>=20)
+        {
+          strike_counter = 0;
+          time_counter = 0;
+          mode = Load;
+        }
+      }
+      else
+      {
+        strike_counter = 0;
+      }
+      break;
+    case Game:
+      speaker_tone = SpeakerOn(distance);
+      if(distance>=63)
+      {
+        HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+      }
+      else
+      {
+        switch (speaker_tone-(game_time%12))
+        {
+        case -3:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case -2:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case -1:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case 0:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case 1:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case 2:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_SET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        case 3:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_SET);
+          break;
+        default:
+          HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED4_GPIO_Port,LED4_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED5_GPIO_Port,LED5_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED6_GPIO_Port,LED6_Pin,GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(LED7_GPIO_Port,LED7_Pin,GPIO_PIN_RESET);
+          break;
+        }
+      }
+      if(speaker_tone==(game_time%12))
+      {
+        strike_counter++;
+        if(strike_counter>=20)
+        {
+          strike_counter = 0;
+          game_time = time_counter;
+          time_counter = 0;
+          mode = Finish;
+        }
+      }
+      else
+      {
+        strike_counter = 0;
+      }
+      break;
+    case Clear:
+      if(distance<10)
+      {
+        strike_counter++;
+        if(strike_counter>=20)
+        {
+          strike_counter = 0;
+          time_counter = 0;
+          mode = Finish;
+        }
+      }
+      else
+      {
+        strike_counter = 0;
+      }
+      break;
+    default:
+      break;
+    }
+    uint8_t tof_data[16] = {};
+    snprintf((char*)tof_data,16,"%d,%ld,%ld\r\n",distance,time_counter,game_time);
+    HAL_UART_Transmit_DMA(&huart2,tof_data,16);
+  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -95,31 +542,22 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-  MX_GPIO_Init();
+  MX_DMA_Init();
   MX_I2C1_Init();
+  MX_TIM2_Init();
   MX_USART2_UART_Init();
+  MX_GPIO_Init();
   MX_TIM3_Init();
   MX_TIM8_Init();
   /* USER CODE BEGIN 2 */
   uint8_t uart_buf[] = "start\r\n";
-  uint16_t address = 0x80;
-  uint16_t addressR = address+1;
-  uint8_t tx_buf[1] = {0x5E};
-  uint8_t rx_buf[2] = {};
   HAL_UART_Transmit(&huart2,uart_buf,sizeof(uart_buf),1000);
-  //HAL_TIM_Base_Start(&htim2);
+  HAL_GPIO_WritePin(GPIO_GPIO_Port,GPIO_Pin,SET);
+  HAL_I2C_Master_Transmit(&hi2c1,address,tx_on_buf,2,1);
+  TIM2->CNT = 0;
   TIM3->CNT = 0;
-  TIM4->CNT = 0;
-  if(HAL_TIM_Base_Start(&htim3)!=HAL_OK)
-  {
-    Error_Handler();
-  }
-  if(HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1)!=HAL_OK)
-  {
-    Error_Handler();
-  }
-  HAL_GPIO_WritePin(LED2_GPIO_Port,LED2_Pin,GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LED3_GPIO_Port,LED3_Pin,GPIO_PIN_SET);
+  TIM8->CNT = 0;
+  HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -130,17 +568,21 @@ int main(void)
     HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
     //TIM3->CCR1 = 10000;
     //TIM4->CCR1 = 10000;
-    HAL_Delay(25);
+    HAL_Delay(250);
     
-    HAL_GPIO_WritePin(GPIOC,GPIO_PIN_0,SET);
-    if(HAL_I2C_Master_Transmit(&hi2c1,address,tx_buf,1,1000)!=HAL_OK)
+    HAL_GPIO_WritePin(GPIO_GPIO_Port,GPIO_Pin,SET);
+    //HAL_I2C_Master_Transmit(&hi2c1,address,tx_buf,1,1000);
+    //HAL_I2C_Master_Receive(&hi2c1,addressR,rx_buf,2,1000);
+    
+    if(HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1)!=HAL_OK)
     {
       //Error_Handler();
     }
-    if(HAL_I2C_Master_Receive(&hi2c1,addressR,rx_buf,2,1000)!=HAL_OK)
+    if(HAL_I2C_Master_Receive_DMA(&hi2c1,addressR,rx_buf,2)!=HAL_OK)
     {
       //Error_Handler();
     }
+    
     uint16_t distance = (rx_buf[0]<<4|rx_buf[1])/64;
     if(distance<40)
     {
@@ -155,12 +597,12 @@ int main(void)
     uint8_t tof_data[16] = {};
     snprintf((char*)tof_data,16,"%d,%ld\r\n",distance,TIM4->CCR1);
     HAL_UART_Transmit(&huart2,tof_data,16,1000);
-    
-    HAL_GPIO_WritePin(GPIOC,GPIO_PIN_0,RESET);
+    HAL_GPIO_WritePin(GPIO_GPIO_Port,GPIO_Pin,RESET);
     //TIM3->CCR1 = 50000;
     //TIM4->CCR1 = 50000;
-    HAL_Delay(25);
+    HAL_Delay(250);
     */
+    
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -248,6 +690,51 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 4199999;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -318,6 +805,7 @@ static void MX_TIM8_Init(void)
 
   /* USER CODE END TIM8_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
   TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
@@ -326,12 +814,21 @@ static void MX_TIM8_Init(void)
 
   /* USER CODE END TIM8_Init 1 */
   htim8.Instance = TIM8;
-  htim8.Init.Prescaler = 0;
+  htim8.Init.Prescaler = 5;
   htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim8.Init.Period = 65535;
+  htim8.Init.Period = 53639;
   htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim8.Init.RepetitionCounter = 0;
   htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim8, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim8) != HAL_OK)
   {
     Error_Handler();
@@ -343,7 +840,7 @@ static void MX_TIM8_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 18000;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
@@ -404,6 +901,28 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+  /* DMA1_Stream6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
+  /* DMA1_Stream7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -422,7 +941,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, LED2_Pin|LED3_Pin|LED1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LED7_Pin|LED6_Pin|LED5_Pin|LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LED7_Pin|LED6_Pin|LED5_Pin|LD2_Pin
+                          |GPIO_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED4_GPIO_Port, LED4_Pin, GPIO_PIN_RESET);
@@ -440,8 +960,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LED7_Pin LED6_Pin LED5_Pin LD2_Pin */
-  GPIO_InitStruct.Pin = LED7_Pin|LED6_Pin|LED5_Pin|LD2_Pin;
+  /*Configure GPIO pins : LED7_Pin LED6_Pin LED5_Pin LD2_Pin
+                           GPIO_Pin */
+  GPIO_InitStruct.Pin = LED7_Pin|LED6_Pin|LED5_Pin|LD2_Pin
+                          |GPIO_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
