@@ -79,6 +79,78 @@ static void MX_TIM8_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 enum Tone {C=0,Cs,D,Ef,E,F,Fs,G,Gs,A,Bf,B,none};
+enum Tone ASpeakerOn(uint16_t distance)
+{
+  switch (distance)
+  {
+  case 3: case 4:
+    TIM3->ARR = tone_array[C];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return C;
+    break;
+  case 5: case 6:
+    TIM3->ARR = tone_array[Cs];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Cs;
+  case 7: case 8:
+    TIM3->ARR = tone_array[D];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return D;
+  case 9: case 10:
+    TIM3->ARR = tone_array[Ef];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Ef;
+  case 11: case 12: case 13:
+    TIM3->ARR = tone_array[E];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return E;
+  case 14: case 15: case 16:
+    TIM3->ARR = tone_array[F];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return F;
+  case 17: case 18: case 19: case 20:
+    TIM3->ARR = tone_array[Fs];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Fs;
+  case 21: case 22: case 23: case 24:
+    TIM3->ARR = tone_array[G];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return G;
+  case 25: case 26: case 27: case 28:
+    TIM3->ARR = tone_array[Gs];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Gs;
+  case 29: case 30: case 31: case 32: case 33: case 34:
+    TIM3->ARR = tone_array[A];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return A;
+  case 35: case 36: case 37: case 38: 
+    TIM3->ARR = tone_array[Bf];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return Bf;
+  case 39: case 40: case 41: case 42:
+    TIM3->ARR = tone_array[B];
+    TIM3->CCR1 = (TIM3->ARR)/2;
+    HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+    return B;
+  default:
+    HAL_TIM_PWM_Stop(&htim3,TIM_CHANNEL_1);
+    return none;
+    break;
+  }
+}
+
 enum Tone SpeakerOn(uint16_t distance)
 {
   switch (distance)
@@ -129,17 +201,17 @@ enum Tone SpeakerOn(uint16_t distance)
     TIM3->CCR1 = (TIM3->ARR)/2;
     HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
     return Gs;
-  case 29: case 30: case 31: case 32:
+  case 29: case 30: case 31: case 32: case 33:
     TIM3->ARR = tone_array[A];
     TIM3->CCR1 = (TIM3->ARR)/2;
     HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
     return A;
-  case 33: case 34: case 35: case 36:
+  case 34: case 35: case 36: case 37: case 38: 
     TIM3->ARR = tone_array[Bf];
     TIM3->CCR1 = (TIM3->ARR)/2;
     HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
     return Bf;
-  case 37: case 38: case 39: case 40: case 41:
+  case 39: case 40: case 41: case 42: case 43: 
     TIM3->ARR = tone_array[B];
     TIM3->CCR1 = (TIM3->ARR)/2;
     HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
@@ -272,7 +344,7 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
     switch (mode)
     {
       case Wait:
-      if(distance<10)
+      if(distance<50)
       {
         strike_counter++;
         if(strike_counter>=20)
@@ -288,7 +360,7 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
       }
       break;
     case Start:
-      speaker_tone = SpeakerOn(distance);
+      speaker_tone = ASpeakerOn(distance);
       if(distance>=63)
       {
         HAL_GPIO_WritePin(LED1_GPIO_Port,LED1_Pin,GPIO_PIN_RESET);
@@ -371,7 +443,7 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
       if(speaker_tone==A)
       {
         strike_counter++;
-        if(strike_counter>=20)
+        if(strike_counter>=10)
         {
           strike_counter = 0;
           time_counter = 0;
@@ -476,7 +548,7 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
       if(speaker_tone==(game_time%12))
       {
         strike_counter++;
-        if(strike_counter>=20)
+        if(strike_counter>=15)
         {
           strike_counter = 0;
           game_time = time_counter;
@@ -564,45 +636,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /*
-    HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
-    //TIM3->CCR1 = 10000;
-    //TIM4->CCR1 = 10000;
-    HAL_Delay(250);
-    
-    HAL_GPIO_WritePin(GPIO_GPIO_Port,GPIO_Pin,SET);
-    //HAL_I2C_Master_Transmit(&hi2c1,address,tx_buf,1,1000);
-    //HAL_I2C_Master_Receive(&hi2c1,addressR,rx_buf,2,1000);
-    
-    if(HAL_I2C_Master_Transmit_DMA(&hi2c1,address,tx_buf,1)!=HAL_OK)
-    {
-      //Error_Handler();
-    }
-    if(HAL_I2C_Master_Receive_DMA(&hi2c1,addressR,rx_buf,2)!=HAL_OK)
-    {
-      //Error_Handler();
-    }
-    
-    uint16_t distance = (rx_buf[0]<<4|rx_buf[1])/64;
-    if(distance<40)
-    {
-      TIM4->ARR = 5357;
-      TIM4->CCR1 = (uint32_t)(TIM4->ARR*distance/40);
-    }
-    else
-    {
-      TIM4->ARR = 5357;
-      TIM4->CCR1 = 2650;
-    }
-    uint8_t tof_data[16] = {};
-    snprintf((char*)tof_data,16,"%d,%ld\r\n",distance,TIM4->CCR1);
-    HAL_UART_Transmit(&huart2,tof_data,16,1000);
-    HAL_GPIO_WritePin(GPIO_GPIO_Port,GPIO_Pin,RESET);
-    //TIM3->CCR1 = 50000;
-    //TIM4->CCR1 = 50000;
-    HAL_Delay(250);
-    */
-    
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
